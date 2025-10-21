@@ -5151,8 +5151,6 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 
 	updateBody := &vms.UpdateRequestBody{}
 
-	var del []string
-
 	resource := VM()
 
 	// Retrieve the entire configuration as we need to process certain values.
@@ -5210,7 +5208,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 	name := d.Get(mkName).(string)
 
 	if name == "" {
-		del = append(del, "name")
+		updateBody.Delete = append(updateBody.Delete, "name")
 	} else {
 		updateBody.Name = &name
 	}
@@ -5276,12 +5274,12 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 
 		for i, ad := range updateBody.AudioDevices {
 			if !ad.Enabled {
-				del = append(del, fmt.Sprintf("audio%d", i))
+				updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("audio%d", i))
 			}
 		}
 
 		for i := len(updateBody.AudioDevices); i < maxResourceVirtualEnvironmentVMAudioDevices; i++ {
-			del = append(del, fmt.Sprintf("audio%d", i))
+			updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("audio%d", i))
 		}
 
 		rebootRequired = true
@@ -5332,7 +5330,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 			}
 
 			if oldInterface != cdromInterface {
-				del = append(del, oldInterface)
+				updateBody.Delete = append(updateBody.Delete, oldInterface)
 			}
 		}
 
@@ -5389,20 +5387,20 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 			if cpuAffinity != "" {
 				updateBody.CPUAffinity = &cpuAffinity
 			} else {
-				del = append(del, "affinity")
+				updateBody.Delete = append(updateBody.Delete, "affinity")
 			}
 		}
 
 		if cpuHotplugged > 0 {
 			updateBody.VirtualCPUCount = ptr.Ptr(int64(cpuHotplugged))
 		} else {
-			del = append(del, "vcpus")
+			updateBody.Delete = append(updateBody.Delete, "vcpus")
 		}
 
 		if cpuLimit > 0 {
 			updateBody.CPULimit = ptr.Ptr(int64(cpuLimit))
 		} else {
-			del = append(del, "cpulimit")
+			updateBody.Delete = append(updateBody.Delete, "cpulimit")
 		}
 
 		cpuFlagsConverted := make([]string, len(cpuFlags))
@@ -5495,7 +5493,9 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 
 		initialization := d.Get(mkInitialization).([]interface{})
 
-		if updateBody.CloudInitConfig != nil && len(initialization) > 0 && initialization[0] != nil {
+		// TODO: remove any ipconfig removed from the configuration
+
+		if updateBody.CloudInitConfig != nil {
 			var fileVolume string
 
 			initializationBlock := initialization[0].(map[string]interface{})
@@ -5562,7 +5562,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		updateBody.PCIDevices = vmGetHostPCIDeviceObjects(d)
 
 		for i := len(updateBody.PCIDevices); i < maxResourceVirtualEnvironmentVMHostPCIDevices; i++ {
-			del = append(del, fmt.Sprintf("hostpci%d", i))
+			updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("hostpci%d", i))
 		}
 
 		rebootRequired = true
@@ -5573,7 +5573,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		updateBody.NUMADevices = vmGetNumaDeviceObjects(d)
 
 		for i := len(updateBody.NUMADevices); i < maxResourceVirtualEnvironmentVMNUMADevices; i++ {
-			del = append(del, fmt.Sprintf("numa%d", i))
+			updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("numa%d", i))
 		}
 
 		rebootRequired = true
@@ -5584,7 +5584,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		updateBody.USBDevices = vmGetHostUSBDeviceObjects(d)
 
 		for i := len(updateBody.USBDevices); i < maxResourceVirtualEnvironmentVMHostUSBDevices; i++ {
-			del = append(del, fmt.Sprintf("usb%d", i))
+			updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("usb%d", i))
 		}
 
 		rebootRequired = true
@@ -5625,7 +5625,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 			if memoryHugepages != "" {
 				updateBody.Hugepages = &memoryHugepages
 			} else {
-				del = append(del, "hugepages")
+				updateBody.Delete = append(updateBody.Delete, "hugepages")
 			}
 		}
 
@@ -5633,7 +5633,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 			if memoryHugepages != "" {
 				updateBody.KeepHugepages = &memoryKeepHugepages
 			} else {
-				del = append(del, "keephugepages")
+				updateBody.Delete = append(updateBody.Delete, "keephugepages")
 			}
 		}
 
@@ -5650,12 +5650,12 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 
 		for i, nd := range updateBody.NetworkDevices {
 			if !nd.Enabled {
-				del = append(del, fmt.Sprintf("net%d", i))
+				updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("net%d", i))
 			}
 		}
 
 		for i := len(updateBody.NetworkDevices); i < network.MaxNetworkDevices; i++ {
-			del = append(del, fmt.Sprintf("net%d", i))
+			updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("net%d", i))
 		}
 
 		rebootRequired = true
@@ -5686,7 +5686,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		updateBody.SerialDevices = vmGetSerialDeviceList(d)
 
 		for i := len(updateBody.SerialDevices); i < maxResourceVirtualEnvironmentVMSerialDevices; i++ {
-			del = append(del, fmt.Sprintf("serial%d", i))
+			updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("serial%d", i))
 		}
 
 		rebootRequired = true
@@ -5695,14 +5695,14 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 	if d.HasChange(mkSMBIOS) {
 		updateBody.SMBIOS = vmGetSMBIOS(d)
 		if updateBody.SMBIOS == nil {
-			del = append(del, "smbios1")
+			updateBody.Delete = append(updateBody.Delete, "smbios1")
 		}
 	}
 
 	if d.HasChange(mkStartup) {
 		updateBody.StartupOrder = vmGetStartupOrder(d)
 		if updateBody.StartupOrder == nil {
-			del = append(del, "startup")
+			updateBody.Delete = append(updateBody.Delete, "startup")
 		}
 	}
 
@@ -5717,7 +5717,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		updateBody.VirtiofsShares = vmGetVirtiofsShares(d)
 
 		for i := len(updateBody.VirtiofsShares); i < maxResourceVirtualEnvironmentVirtiofsShares; i++ {
-			del = append(del, fmt.Sprintf("virtiofs%d", i))
+			updateBody.Delete = append(updateBody.Delete, fmt.Sprintf("virtiofs%d", i))
 		}
 
 		rebootRequired = true
@@ -5736,7 +5736,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		if len(hookScript) > 0 {
 			updateBody.HookScript = &hookScript
 		} else {
-			del = append(del, "hookscript")
+			updateBody.Delete = append(updateBody.Delete, "hookscript")
 		}
 	}
 
@@ -5765,14 +5765,11 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 				Model:  &watchdogModel,
 			}
 		} else {
-			del = append(del, "watchdog")
+			updateBody.Delete = append(updateBody.Delete, "watchdog")
 		}
 
 		rebootRequired = true
 	}
-
-	// Update the configuration now that everything has been prepared.
-	updateBody.Delete = del
 
 	e = vmAPI.UpdateVM(ctx, updateBody)
 	if e != nil {
